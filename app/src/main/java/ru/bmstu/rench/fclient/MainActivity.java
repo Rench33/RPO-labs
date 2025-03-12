@@ -1,16 +1,25 @@
 package ru.bmstu.rench.fclient;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.Arrays;
+
+import org.apache.commons.codec.DecoderException;
+import org.apache.commons.codec.binary.Hex;
 
 import ru.bmstu.rench.fclient.databinding.ActivityMainBinding;
 
 public class MainActivity extends AppCompatActivity {
+    ActivityResultLauncher<Intent> activityResultLauncher;
     public static native byte[] encrypt(byte[] key, byte[] data);
     public static native byte[] randomBytes(int no);
     public static native byte[] decrypt(byte[] key, byte[] data);
@@ -38,8 +47,38 @@ public class MainActivity extends AppCompatActivity {
         byte[] b = decrypt(v, a);
         Log.println(Log.INFO, "Decrypt", Arrays.toString(b));
         // Example of a call to a native method
-        TextView tv = binding.sampleText;
-        tv.setText(stringFromJNI());
+
+        activityResultLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        // Обработка результата
+                        String pin = result.getData().getStringExtra("pin");
+                        Toast.makeText(MainActivity.this, "Введен PIN: " + pin, Toast.LENGTH_SHORT).show();
+                    }
+                }
+        );
+    }
+
+    public static byte[] stringToHex(String s)
+    {
+        byte[] hex;
+        try
+        {
+            hex = Hex.decodeHex(s.toCharArray());
+        }
+        catch (DecoderException ex)
+        {
+            hex = null;
+        }
+        return hex;
+    }
+
+    public void onButtonClick(View v)
+    {
+        Intent it = new Intent(this, PinpadActivity.class);
+        //startActivity(it);
+        activityResultLauncher.launch(it);
     }
 
     /**
