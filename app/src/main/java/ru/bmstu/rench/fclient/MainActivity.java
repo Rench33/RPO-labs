@@ -4,6 +4,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
@@ -18,7 +19,14 @@ import org.apache.commons.codec.binary.Hex;
 
 import ru.bmstu.rench.fclient.databinding.ActivityMainBinding;
 
-public class MainActivity extends AppCompatActivity {
+
+
+public class MainActivity extends AppCompatActivity implements TransactionEvents {
+
+    private String pin;
+
+    public native boolean transaction(byte[] trd);
+
     ActivityResultLauncher<Intent> activityResultLauncher;
     public static native byte[] encrypt(byte[] key, byte[] data);
     public static native byte[] randomBytes(int no);
@@ -51,13 +59,23 @@ public class MainActivity extends AppCompatActivity {
         activityResultLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
-                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                        // Обработка результата
-                        String pin = result.getData().getStringExtra("pin");
-                        Toast.makeText(MainActivity.this, "Введен PIN: " + pin, Toast.LENGTH_SHORT).show();
+                    if (result.getResultCode() == Activity.RESULT_OK) {
+                        Intent data = result.getData();
+
+                        //String pin = data.getStringExtra("pin");
+                        assert data != null;
+                        pin = data.getStringExtra("pin");
+                        synchronized (MainActivity.this) {
+                            MainActivity.this.notifyAll();
+                        }
+
+                        //Toast.makeText(MainActivity.this, pin, Toast.LENGTH_SHORT).show();
                     }
                 }
         );
+
+
+
     }
 
     public static byte[] stringToHex(String s)
@@ -74,11 +92,42 @@ public class MainActivity extends AppCompatActivity {
         return hex;
     }
 
+    @Override
+    public String enterPin(int ptc, String amount) {
+        pin = new String();
+        Intent it = new Intent(MainActivity.this, PinpadActivity.class);
+        it.putExtra("ptc", ptc);
+        it.putExtra("amount", amount);
+        synchronized (MainActivity.this) {
+            activityResultLauncher.launch(it);
+            try {
+                MainActivity.this.wait();
+            } catch (Exception ex) {
+                //todo: log error
+            }
+        }
+        return pin;
+    }
+
+    @Override
+    public void transactionResult(boolean result) {
+        runOnUiThread(()-> {
+            Toast.makeText(MainActivity.this, result ? "ok" : "failed", Toast.LENGTH_SHORT).show();
+        });
+    }
+
     public void onButtonClick(View v)
     {
-        Intent it = new Intent(this, PinpadActivity.class);
-        //startActivity(it);
-        activityResultLauncher.launch(it);
+        new Thread(()-> {
+            try {
+                byte[] trd = stringToHex("9F0206000000000100");
+                transaction(trd);
+
+            } catch (Exception ex) {
+                // todo: log error
+            }
+        }).start();
+
     }
 
     /**
