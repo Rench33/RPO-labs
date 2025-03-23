@@ -12,10 +12,16 @@ import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.Arrays;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.io.IOUtils;
 
 import ru.bmstu.rench.fclient.databinding.ActivityMainBinding;
 
@@ -54,7 +60,11 @@ public class MainActivity extends AppCompatActivity implements TransactionEvents
         Log.println(Log.INFO, "Encrypt", Arrays.toString(a));
         byte[] b = decrypt(v, a);
         Log.println(Log.INFO, "Decrypt", Arrays.toString(b));
-        // Example of a call to a native method
+        findViewById(R.id.sample_button).setOnLongClickListener(view->{
+            testHttpClient();
+            return true;
+        });
+
 
         activityResultLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
@@ -135,4 +145,38 @@ public class MainActivity extends AppCompatActivity implements TransactionEvents
      * which is packaged with this application.
      */
     public native String stringFromJNI();
+
+    protected String getPageTitle(String html)
+    {
+        Pattern pattern = Pattern.compile("<title>(.+?)</title>", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(html);
+        String p;
+        if (matcher.find())
+            p = matcher.group(1);
+        else
+            p = "Not found";
+        return p;
+    }
+
+
+    protected void testHttpClient()
+    {
+        new Thread(() -> {
+            try {
+                HttpURLConnection uc = (HttpURLConnection)
+                        (new URL("http://10.0.2.2:8081/api/v1/title").openConnection());
+                InputStream inputStream = uc.getInputStream();
+                String html = IOUtils.toString(inputStream);
+                String title = getPageTitle(html);
+                runOnUiThread(() ->
+                {
+                    Toast.makeText(this, title, Toast.LENGTH_LONG).show();
+                });
+
+            } catch (Exception ex) {
+                Log.println(Log.ERROR, "ERROR", ex.toString());
+            }
+        }).start();
+    }
+
 }
